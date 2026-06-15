@@ -258,7 +258,6 @@ static void pw_pal_process_stream(void *d)
                 pw_log_error("Could not read data: %d %d", rc, __LINE__);
             }
         }
-        pw_log_error("read buffer data %p with up to %u bytes", data, size);
 
         bd->chunk->size = size;
         bd->chunk->stride = udata->frame_size;
