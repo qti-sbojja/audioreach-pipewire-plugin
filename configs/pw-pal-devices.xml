@@ -1,44 +1,53 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  pw-pal-devices.xml — per-board device capability map for the PAL PipeWire module.
+  pw-pal-devices.xml — soundcard-based stream capability map.
 
-  Each <stream> entry corresponds to a module instance in pw-pal-plugin.conf.
-  Set enabled="false" for streams whose hardware is absent on a given board.
-  The module reads /proc/asound/cards at init time to detect the active sound
-  card; if the card name does not match <soundcard>, all streams are disabled.
+  All streams are DISABLED by default.  A stream is enabled only when
+  the active sound card (read from /proc/asound/cards) matches one of
+  the <soundcard> blocks that lists it.
 
-  Fields:
-    node      : matches node.name in pw-pal-plugin.conf (required)
-    enabled   : "true" | "false"  (default: true)
-    soundcard : substring matched against /proc/asound/cards (optional,
-                leave empty to skip card check for this stream)
+  <soundcard name="...">
+    The name attribute is a whitespace/comma-separated list of substrings.
+    A card matches if ANY of those substrings is found in
+    /proc/asound/cards.  This lets two boards that share the same
+    sinks/sources be expressed in a single block.
+
+    Example — two boards sharing speaker + mic streams:
+      <soundcard name="qcs8275 monaco-evk">
+
+  <stream node="...">
+    node matches node.name in pw-pal-plugin.conf.
+    Only streams listed inside a matching <soundcard> block are enabled.
 -->
 <pw-pal-devices>
 
-    <!-- ── Speaker streams ─────────────────────────────────────── -->
-    <stream node="pal_sink_speaker_ll"       enabled="true"  soundcard="" />
-    <stream node="pal_sink_speaker_db"       enabled="true"  soundcard="" />
-    <stream node="pal_sink_speaker_compress" enabled="true"  soundcard="" />
+    <!-- ── qcs8275 EVK (max98357a + dmic) ─────────────────────── -->
+    <soundcard name="qcs8275">
+        <stream node="pal_sink_speaker_ll" />
+        <stream node="pal_sink_speaker_db" />
+        <stream node="pal_sink_speaker_compress" />
+        <stream node="pal_source_speaker_mic" />
+        <stream node="pal_sink_dp_out_ll" />
+        <stream node="pal_sink_dp_out_db" />
+        <stream node="pal_sink_hdmi_out_ll" />
+        <stream node="pal_sink_hdmi_out_db" />
+    </soundcard>
 
-    <!-- ── Headset streams ─────────────────────────────────────── -->
-    <stream node="pal_sink_headset_ll"       enabled="true"  soundcard="" />
-    <stream node="pal_sink_headset_db"       enabled="true"  soundcard="" />
-    <stream node="pal_source_headset_mic"    enabled="true"  soundcard="" />
+    <!-- ── monaco-arduino-monza / gertrude (max98091) ──────────── -->
+    <!-- shares speaker/mic streams with qcs8275 EVK above;         -->
+    <!-- additionally supports headset via max98091                  -->
+    <soundcard name="arduino-monza monaco-gertrude">
+        <stream node="pal_sink_speaker_ll" />
+        <stream node="pal_sink_speaker_db" />
+        <stream node="pal_sink_speaker_compress" />
+        <stream node="pal_sink_headset_ll" />
+        <stream node="pal_sink_headset_db" />
+        <stream node="pal_source_speaker_mic" />
+        <stream node="pal_source_headset_mic" />
+        <stream node="pal_sink_combined_ll" />
+        <stream node="pal_sink_combined_db" />
+    </soundcard>
 
-    <!-- ── Mic / capture streams ───────────────────────────────── -->
-    <stream node="pal_source_speaker_mic"    enabled="true"  soundcard="" />
-
-    <!-- ── Display-port / HDMI streams ────────────────────────── -->
-    <stream node="pal_sink_dp_out_ll"        enabled="true"  soundcard="" />
-    <stream node="pal_sink_dp_out_db"        enabled="true"  soundcard="" />
-    <stream node="pal_sink_hdmi_out_ll"      enabled="true"  soundcard="" />
-    <stream node="pal_sink_hdmi_out_db"      enabled="true"  soundcard="" />
-
-    <!-- ── Combined speaker+headset streams ────────────────────── -->
-    <stream node="pal_sink_combined_ll"      enabled="true"  soundcard="" />
-    <stream node="pal_sink_combined_db"      enabled="true"  soundcard="" />
-
-    <!-- ── Voice UI / SVA stream ───────────────────────────────── -->
-    <stream node="pal_source_voice_ui"       enabled="true"  soundcard="" />
+    <!-- ── Add more soundcard blocks here for other boards ──────── -->
 
 </pw-pal-devices>
