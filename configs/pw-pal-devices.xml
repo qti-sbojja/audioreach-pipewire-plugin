@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  pw-pal-devices.xml — per-board device capability map for the PAL PipeWire module.
+
+  Each <stream> entry corresponds to a module instance in pw-pal-plugin.conf.
+  Set enabled="false" for streams whose hardware is absent on a given board.
+  The module reads /proc/asound/cards at init time to detect the active sound
+  card; if the card name does not match <soundcard>, all streams are disabled.
+
+  Fields:
+    node      : matches node.name in pw-pal-plugin.conf (required)
+    enabled   : "true" | "false"  (default: true)
+    soundcard : substring matched against /proc/asound/cards (optional,
+                leave empty to skip card check for this stream)
+-->
+<pw-pal-devices>
+
+    <!-- ── Speaker streams ─────────────────────────────────────── -->
+    <stream node="pal_sink_speaker_ll"       enabled="true"  soundcard="" />
+    <stream node="pal_sink_speaker_db"       enabled="true"  soundcard="" />
+    <stream node="pal_sink_speaker_compress" enabled="true"  soundcard="" />
+
+    <!-- ── Headset streams ─────────────────────────────────────── -->
+    <stream node="pal_sink_headset_ll"       enabled="true"  soundcard="" />
+    <stream node="pal_sink_headset_db"       enabled="true"  soundcard="" />
+    <stream node="pal_source_headset_mic"    enabled="true"  soundcard="" />
+
+    <!-- ── Mic / capture streams ───────────────────────────────── -->
+    <stream node="pal_source_speaker_mic"    enabled="true"  soundcard="" />
+
+    <!-- ── Display-port / HDMI streams ────────────────────────── -->
+    <stream node="pal_sink_dp_out_ll"        enabled="true"  soundcard="" />
+    <stream node="pal_sink_dp_out_db"        enabled="true"  soundcard="" />
+    <stream node="pal_sink_hdmi_out_ll"      enabled="true"  soundcard="" />
+    <stream node="pal_sink_hdmi_out_db"      enabled="true"  soundcard="" />
+
+    <!-- ── Combined speaker+headset streams ────────────────────── -->
+    <stream node="pal_sink_combined_ll"      enabled="true"  soundcard="" />
+    <stream node="pal_sink_combined_db"      enabled="true"  soundcard="" />
+
+    <!-- ── Voice UI / SVA stream ───────────────────────────────── -->
+    <stream node="pal_source_voice_ui"       enabled="true"  soundcard="" />
+
+</pw-pal-devices>
