@@ -7,36 +7,57 @@
   the <soundcard> blocks that lists it.
 
   <soundcard name="...">
-    The name attribute is a whitespace/comma-separated list of substrings.
-    A card matches if ANY of those substrings is found in
-    /proc/asound/cards.  This lets two boards that share the same
-    sinks/sources be expressed in a single block.
-
-    Example — two boards sharing speaker + mic streams:
-      <soundcard name="qcs8275 monaco-evk">
+    Whitespace/comma-separated list of substrings matched against
+    /proc/asound/cards.  A card matches if ANY token is found.
+    Multiple boards sharing the same stream set can share one block.
 
   <stream node="...">
     node matches node.name in pw-pal-plugin.conf.
     Only streams listed inside a matching <soundcard> block are enabled.
+
+  ALSA card names are derived from the DTS sound-node model property
+  and follow the PAL convention: <TARGET>-<FORM-FACTOR>-snd-card.
+  The substring used here is the distinctive part before "-snd-card".
+
+  Board → ALSA card name mapping:
+    qcs615  TALOS EVK          : TALOS-EVK
+    qcs8300 MONACO EVK         : MONACO-EVK
+    qcs8300 arduino-monza      : arduino-monza
+    qcs6490 RB3Gen2            : QCS6490-RB3Gen2
+    qcs9075 LEMANS EVK         : LEMANS-EVK
+    shikra  CQS EVK            : shikra-cqs
+    shikra  IQS EVK            : shikra-iqs
+    glymur  CRD                : GLYMUR-CRD
+    kaanapali MTP              : Kaanapali-MTP
+    mahua   CRD                : MAHUA-CRD
+    nord    RIDE SX            : NORD-RIDE-SX
+    sm8750  MTP                : SM8750-MTP
+    x1e80100 CRD               : X1E80100-CRD
+    x1e80100 EVK               : X1E80100-EVK
 -->
 <pw-pal-devices>
 
-    <!-- ── qcs8275 EVK (max98357a + dmic) ─────────────────────── -->
-    <soundcard name="qcs8275">
+    <!-- ── qcs615 TALOS EVK ─────────────────────────────────────
+         Codec: max9867 — headset + mic only, no speaker, no DP   -->
+    <soundcard name="TALOS-EVK">
+        <stream node="pal_sink_headset_ll" />
+        <stream node="pal_sink_headset_db" />
+        <stream node="pal_source_headset_mic" />
+        <stream node="pal_source_speaker_mic" />
+    </soundcard>
+
+    <!-- ── qcs8300 MONACO EVK ───────────────────────────────────
+         Codec: max98357a + dmic — speaker + mic, no headset, no DP -->
+    <soundcard name="MONACO-EVK">
         <stream node="pal_sink_speaker_ll" />
         <stream node="pal_sink_speaker_db" />
         <stream node="pal_sink_speaker_compress" />
         <stream node="pal_source_speaker_mic" />
-        <stream node="pal_sink_dp_out_ll" />
-        <stream node="pal_sink_dp_out_db" />
-        <stream node="pal_sink_hdmi_out_ll" />
-        <stream node="pal_sink_hdmi_out_db" />
     </soundcard>
 
-    <!-- ── monaco-arduino-monza / gertrude (max98091) ──────────── -->
-    <!-- shares speaker/mic streams with qcs8275 EVK above;         -->
-    <!-- additionally supports headset via max98091                  -->
-    <soundcard name="arduino-monza monaco-gertrude">
+    <!-- ── qcs8300 arduino-monza (ventuno Q) ────────────────────
+         Codec: max98091 — speaker + headset + mic, no DP          -->
+    <soundcard name="arduino-monza">
         <stream node="pal_sink_speaker_ll" />
         <stream node="pal_sink_speaker_db" />
         <stream node="pal_sink_speaker_compress" />
@@ -48,6 +69,79 @@
         <stream node="pal_sink_combined_db" />
     </soundcard>
 
-    <!-- ── Add more soundcard blocks here for other boards ──────── -->
+    <!-- ── qcs9075 LEMANS EVK ───────────────────────────────────
+         Speaker + mic only, no headset, no DP                     -->
+    <soundcard name="LEMANS-EVK">
+        <stream node="pal_sink_speaker_ll" />
+        <stream node="pal_sink_speaker_db" />
+        <stream node="pal_sink_speaker_compress" />
+        <stream node="pal_source_speaker_mic" />
+    </soundcard>
+
+    <!-- ── shikra CQS + IQS EVK ─────────────────────────────────
+         Both variants: speaker + headset + mic, no DP             -->
+    <soundcard name="shikra-cqs shikra-iqs">
+        <stream node="pal_sink_speaker_ll" />
+        <stream node="pal_sink_speaker_db" />
+        <stream node="pal_sink_speaker_compress" />
+        <stream node="pal_sink_headset_ll" />
+        <stream node="pal_sink_headset_db" />
+        <stream node="pal_source_speaker_mic" />
+        <stream node="pal_source_headset_mic" />
+        <stream node="pal_sink_combined_ll" />
+        <stream node="pal_sink_combined_db" />
+        <stream node="pal_source_voice_ui" />
+    </soundcard>
+
+    <!-- ── qcs6490 RB3Gen2 ──────────────────────────────────────
+         Full: speaker + headset + DP/HDMI + mic                   -->
+    <soundcard name="QCS6490-RB3Gen2">
+        <stream node="pal_sink_speaker_ll" />
+        <stream node="pal_sink_speaker_db" />
+        <stream node="pal_sink_speaker_compress" />
+        <stream node="pal_sink_headset_ll" />
+        <stream node="pal_sink_headset_db" />
+        <stream node="pal_source_speaker_mic" />
+        <stream node="pal_source_headset_mic" />
+        <stream node="pal_sink_combined_ll" />
+        <stream node="pal_sink_combined_db" />
+        <stream node="pal_sink_dp_out_ll" />
+        <stream node="pal_sink_dp_out_db" />
+        <stream node="pal_sink_hdmi_out_ll" />
+        <stream node="pal_sink_hdmi_out_db" />
+    </soundcard>
+
+    <!-- ── NORD RIDE SX ─────────────────────────────────────────
+         Speaker + headset + mic, no DP                            -->
+    <soundcard name="NORD-RIDE-SX">
+        <stream node="pal_sink_speaker_ll" />
+        <stream node="pal_sink_speaker_db" />
+        <stream node="pal_sink_speaker_compress" />
+        <stream node="pal_sink_headset_ll" />
+        <stream node="pal_sink_headset_db" />
+        <stream node="pal_source_speaker_mic" />
+        <stream node="pal_source_headset_mic" />
+        <stream node="pal_sink_combined_ll" />
+        <stream node="pal_sink_combined_db" />
+    </soundcard>
+
+    <!-- ── Full-featured boards: GLYMUR CRD, Kaanapali MTP, ─────
+         MAHUA CRD, SM8750 MTP, X1E80100 CRD+EVK ────────────────
+         All support: speaker + headset + DP/HDMI + mic            -->
+    <soundcard name="GLYMUR-CRD Kaanapali-MTP MAHUA-CRD SM8750-MTP X1E80100-CRD X1E80100-EVK">
+        <stream node="pal_sink_speaker_ll" />
+        <stream node="pal_sink_speaker_db" />
+        <stream node="pal_sink_speaker_compress" />
+        <stream node="pal_sink_headset_ll" />
+        <stream node="pal_sink_headset_db" />
+        <stream node="pal_source_speaker_mic" />
+        <stream node="pal_source_headset_mic" />
+        <stream node="pal_sink_combined_ll" />
+        <stream node="pal_sink_combined_db" />
+        <stream node="pal_sink_dp_out_ll" />
+        <stream node="pal_sink_dp_out_db" />
+        <stream node="pal_sink_hdmi_out_ll" />
+        <stream node="pal_sink_hdmi_out_db" />
+    </soundcard>
 
 </pw-pal-devices>
