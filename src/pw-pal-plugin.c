@@ -36,9 +36,179 @@
 #include <agm/agm_api.h>
 #include <pthread.h>
 #include "SoundTriggerUtils.h"
+#include <expat.h>
 
 
 #define LOG_TAG "pw-pal-plugin"
+
+/* ── Device capability map ─────────────────────────────────────────────────
+ *
+ * At module init time we:
+ *   1. Read /proc/asound/cards to get the active sound card name.
+ *   2. Parse /usr/share/pipewire/pw-pal-devices.xml to build a table of
+ *      (node-name → enabled) entries.  Each entry may also carry an optional
+ *      soundcard substring; if set, the stream is only enabled when that
+ *      substring is found in /proc/asound/cards.
+ *   3. Before creating any PAL stream, check pw_pal_stream_enabled() — if it
+ *      returns false the module returns 0 immediately (no stream registered).
+ *
+ * Board integrators set enabled="false" in pw-pal-devices.xml for hardware
+ * that is absent on their board.  All entries default to enabled="true" so
+ * the out-of-box behaviour is unchanged.
+ * ────────────────────────────────────────────────────────────────────────── */
+
+#define PW_PAL_DEVICES_XML  "/usr/share/pipewire/pw-pal-devices.xml"
+#define PW_PAL_ASOUND_CARDS "/proc/asound/cards"
+#define PW_PAL_MAX_STREAMS  64
+#define PW_PAL_NODE_MAXLEN  64
+#define PW_PAL_CARD_MAXLEN  256
+
+struct pw_pal_stream_cap {
+    char     node[PW_PAL_NODE_MAXLEN];
+    char     soundcard[PW_PAL_CARD_MAXLEN];
+    bool     enabled;
+};
+
+struct pw_pal_devcap {
+    struct pw_pal_stream_cap streams[PW_PAL_MAX_STREAMS];
+    int                      count;
+    char                     card_buf[PW_PAL_CARD_MAXLEN];
+};
+
+/* Expat element handler — called for each <stream .../> tag */
+static void
+pw_pal_xml_start(void *user_data, const XML_Char *name,
+                 const XML_Char **attrs)
+{
+    struct pw_pal_devcap *dc = user_data;
+
+    if (strcmp(name, "stream") != 0)
+        return;
+    if (dc->count >= PW_PAL_MAX_STREAMS)
+        return;
+
+    struct pw_pal_stream_cap *sc = &dc->streams[dc->count];
+    sc->enabled = true;
+    sc->node[0] = '\0';
+    sc->soundcard[0] = '\0';
+
+    for (int i = 0; attrs[i]; i += 2) {
+        if (strcmp(attrs[i], "node") == 0)
+            snprintf(sc->node, sizeof(sc->node), "%s", attrs[i + 1]);
+        else if (strcmp(attrs[i], "enabled") == 0)
+            sc->enabled = (strcmp(attrs[i + 1], "true") == 0);
+        else if (strcmp(attrs[i], "soundcard") == 0)
+            snprintf(sc->soundcard, sizeof(sc->soundcard), "%s", attrs[i + 1]);
+    }
+
+    if (sc->node[0] != '\0')
+        dc->count++;
+}
+
+/*
+ * pw_pal_devcap_load() — parse the XML and read /proc/asound/cards.
+ * Returns 0 on success; on any error the table is left empty and all
+ * streams are treated as enabled (safe fallback).
+ */
+static int
+pw_pal_devcap_load(struct pw_pal_devcap *dc)
+{
+    FILE *fp;
+    char buf[4096];
+    size_t len;
+    XML_Parser p;
+    int ret = 0;
+
+    memset(dc, 0, sizeof(*dc));
+
+    /* Read /proc/asound/cards into card_buf */
+    fp = fopen(PW_PAL_ASOUND_CARDS, "r");
+    if (fp) {
+        len = fread(dc->card_buf, 1, sizeof(dc->card_buf) - 1, fp);
+        dc->card_buf[len] = '\0';
+        fclose(fp);
+    }
+
+    /* Parse XML */
+    fp = fopen(PW_PAL_DEVICES_XML, "r");
+    if (!fp) {
+        pw_log_info("pw-pal: %s not found, all streams enabled",
+                    PW_PAL_DEVICES_XML);
+        return 0;
+    }
+
+    p = XML_ParserCreate(NULL);
+    if (!p) {
+        pw_log_error("pw-pal: failed to create XML parser");
+        fclose(fp);
+        return -ENOMEM;
+    }
+
+    XML_SetUserData(p, dc);
+    XML_SetElementHandler(p, pw_pal_xml_start, NULL);
+
+    while ((len = fread(buf, 1, sizeof(buf), fp)) > 0) {
+        if (XML_Parse(p, buf, (int)len, 0) == XML_STATUS_ERROR) {
+            pw_log_error("pw-pal: XML parse error: %s",
+                         XML_ErrorString(XML_GetErrorCode(p)));
+            ret = -EINVAL;
+            break;
+        }
+    }
+    XML_Parse(p, buf, 0, 1); /* finalise */
+    XML_ParserFree(p);
+    fclose(fp);
+
+    pw_log_info("pw-pal: loaded %d stream entries from %s",
+                dc->count, PW_PAL_DEVICES_XML);
+    return ret;
+}
+
+/*
+ * pw_pal_stream_enabled() — return true if the stream identified by
+ * node_name should be instantiated on this board.
+ *
+ * Rules (in order):
+ *   1. If the XML table has no entry for node_name → enabled (safe default).
+ *   2. If the entry has enabled="false" → disabled.
+ *   3. If the entry has a non-empty soundcard field and that substring is NOT
+ *      found in /proc/asound/cards → disabled.
+ *   4. Otherwise → enabled.
+ */
+static bool
+pw_pal_stream_enabled(const struct pw_pal_devcap *dc, const char *node_name)
+{
+    for (int i = 0; i < dc->count; i++) {
+        const struct pw_pal_stream_cap *sc = &dc->streams[i];
+
+        if (strcmp(sc->node, node_name) != 0)
+            continue;
+
+        if (!sc->enabled) {
+            pw_log_info("pw-pal: stream '%s' disabled in device map",
+                        node_name);
+            return false;
+        }
+
+        if (sc->soundcard[0] != '\0' &&
+            strstr(dc->card_buf, sc->soundcard) == NULL) {
+            pw_log_info("pw-pal: stream '%s' skipped "
+                        "(soundcard '%s' not found in %s)",
+                        node_name, sc->soundcard, PW_PAL_ASOUND_CARDS);
+            return false;
+        }
+
+        return true;
+    }
+
+    /* No entry found — default to enabled */
+    return true;
+}
+
+/* Module-level device capability table, populated once at first module load */
+static struct pw_pal_devcap g_devcap;
+static bool                 g_devcap_loaded = false;
+
 
 #define BITS_PER_BYTE 8
 #define NUM_BYTES ((SW_MAX + BITS_PER_BYTE) / BITS_PER_BYTE)
@@ -2036,6 +2206,35 @@ int pipewire__module_init(struct pw_impl_module *module, const char *args)
     int res = 0;
 
     PW_LOG_TOPIC_INIT(log_topic);
+
+    /* Load device capability map once for the lifetime of the process */
+    if (!g_devcap_loaded) {
+        pw_pal_devcap_load(&g_devcap);
+        g_devcap_loaded = true;
+    }
+
+    /*
+     * Check whether this stream is enabled for the current board.
+     * node.name is available directly in args at this point.
+     * We create a temporary properties object just to extract it,
+     * then free it; the real props object is created below.
+     */
+    {
+        struct pw_properties *tmp = pw_properties_new_string(
+                                        args ? args : "");
+        if (tmp) {
+            const char *node_name = pw_properties_get(
+                                        tmp, PW_KEY_NODE_NAME);
+            if (node_name &&
+                !pw_pal_stream_enabled(&g_devcap, node_name)) {
+                pw_log_info("pw-pal: skipping disabled stream '%s'",
+                            node_name);
+                pw_properties_free(tmp);
+                return 0;
+            }
+            pw_properties_free(tmp);
+        }
+    }
 
     udata = calloc(1, sizeof(struct pw_userdata));
     if (udata == NULL)
