@@ -24,3 +24,5 @@ install-data-hook:
 	$(INSTALL_DATA) $(srcdir)/configs/60-disable-alsa.conf $(DESTDIR)/usr/share/wireplumber/wireplumber.conf.d/
 	$(INSTALL_DATA) $(srcdir)/configs/90-device-detection.conf  $(DESTDIR)/usr/share/wireplumber/wireplumber.conf.d/
 	$(INSTALL_DATA) $(srcdir)/configs/90-device-detection.lua  $(DESTDIR)/usr/share/wireplumber/scripts/
+	$(INSTALL_DATA) $(srcdir)/configs/91-pal-default-nodes.conf $(DESTDIR)/usr/share/wireplumber/wireplumber.conf.d/
+	$(INSTALL_DATA) $(srcdir)/configs/91-pal-default-nodes.lua  $(DESTDIR)/usr/share/wireplumber/scripts/
